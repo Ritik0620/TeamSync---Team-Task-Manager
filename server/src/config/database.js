@@ -1,4 +1,4 @@
-const { Sequelize } = require('sequelize');
+/*const { Sequelize } = require('sequelize');
 const config = require('./index');
 
 const dbUrl = process.env.DATABASE_URL || process.env.DATABASE_PRIVATE_URL || process.env.POSTGRES_URL || config.databaseUrl;
@@ -45,6 +45,83 @@ if (dbUrl && (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://
     },
     pool: { max: 5, min: 0, acquire: 30000, idle: 10000 }
   });
+}
+
+module.exports = sequelize;
+*/
+
+
+const { Sequelize } = require('sequelize');
+const config = require('./index');
+
+const dbUrl =
+  process.env.DATABASE_URL ||
+  process.env.DATABASE_PRIVATE_URL ||
+  process.env.POSTGRES_URL;
+
+console.log(
+  '[DB] Available DB vars:',
+  Object.keys(process.env)
+    .filter((k) => k.includes('PG') || k.includes('POSTGRES') || k.includes('DATABASE'))
+    .join(', ') || 'none'
+);
+
+if (config.nodeEnv === 'production') {
+  if (!dbUrl) {
+    console.error('[DB] FATAL: No DATABASE_URL found in production.');
+    console.error('[DB] Add DATABASE_URL=${{PostgreSQL.DATABASE_URL}} in Railway backend Variables.');
+    process.exit(1);
+  }
+
+  if (!dbUrl.startsWith('postgresql://') && !dbUrl.startsWith('postgres://')) {
+    console.error('[DB] FATAL: DATABASE_URL is invalid.');
+    console.error('[DB] It starts with:', dbUrl.substring(0, 60));
+    console.error('[DB] It must start with postgresql:// or postgres://');
+    process.exit(1);
+  }
+}
+
+let sequelize;
+
+if (dbUrl && (dbUrl.startsWith('postgresql://') || dbUrl.startsWith('postgres://'))) {
+  console.log('[DB] Connecting with DATABASE_URL:', `${dbUrl.substring(0, 15)}...`);
+
+  sequelize = new Sequelize(dbUrl, {
+    dialect: 'postgres',
+    logging: config.nodeEnv === 'development' ? console.log : false,
+    dialectOptions: {
+      ssl:
+        config.nodeEnv === 'production'
+          ? { require: true, rejectUnauthorized: false }
+          : false,
+    },
+    pool: {
+      max: 5,
+      min: 0,
+      acquire: 30000,
+      idle: 10000,
+    },
+  });
+} else {
+  console.log('[DB] Local development mode');
+
+  sequelize = new Sequelize(
+    process.env.PGDATABASE || 'team_task_manager',
+    process.env.PGUSER || 'postgres',
+    process.env.PGPASSWORD || '',
+    {
+      host: process.env.PGHOST || '127.0.0.1',
+      port: process.env.PGPORT || 5432,
+      dialect: 'postgres',
+      logging: config.nodeEnv === 'development' ? console.log : false,
+      pool: {
+        max: 5,
+        min: 0,
+        acquire: 30000,
+        idle: 10000,
+      },
+    }
+  );
 }
 
 module.exports = sequelize;
